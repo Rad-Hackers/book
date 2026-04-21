@@ -1,85 +1,90 @@
-const state = {
-  parts: [],
-  coverDataUrl: '',
-  previewMode: 'single',
-  pages: []
-};
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.mjs';
 
-const $ = (id) => document.getElementById(id);
+const PAGE_WIDTH = 420;
+const PAGE_HEIGHT = 594;
+const EXPORT_SCALE = 2;
+
+const state = {
+  coverDataUrl: '',
+  styleDataUrl: '',
+  parts: [],
+  nextId: 1,
+  renderedPages: [],
+  isExporting: false,
+  inferred: {
+    bgColor: '#f6f1e8',
+    accentColor: '#6a3b1f',
+    font: 'Amiri',
+    preset: 'classic'
+  }
+};
 
 const els = {
-  bookTitle: $('bookTitle'),
-  bookAuthor: $('bookAuthor'),
-  bookDescription: $('bookDescription'),
-  bookDedication: $('bookDedication'),
-  bookRights: $('bookRights'),
-  coverInput: $('coverInput'),
-  partTitle: $('partTitle'),
-  partContent: $('partContent'),
-  addPartBtn: $('addPartBtn'),
-  partsFiles: $('partsFiles'),
-  importPartsBtn: $('importPartsBtn'),
-  clearPartsBtn: $('clearPartsBtn'),
-  partsList: $('partsList'),
-  themeSelect: $('themeSelect'),
-  pageSize: $('pageSize'),
-  fontSelect: $('fontSelect'),
-  fontSize: $('fontSize'),
-  lineHeight: $('lineHeight'),
-  pagePadding: $('pagePadding'),
-  pageBg: $('pageBg'),
-  textColor: $('textColor'),
-  accentColor: $('accentColor'),
-  appBg: $('appBg'),
-  showFrontMatter: $('showFrontMatter'),
-  showPageNumbers: $('showPageNumbers'),
-  highlightDialogues: $('highlightDialogues'),
-  highlightQuotes: $('highlightQuotes'),
-  applyThemeBtn: $('applyThemeBtn'),
-  generatePreviewBtn: $('generatePreviewBtn'),
-  saveProjectBtn: $('saveProjectBtn'),
-  loadProjectBtn: $('loadProjectBtn'),
-  exportProjectBtn: $('exportProjectBtn'),
-  projectFileInput: $('projectFileInput'),
-  downloadPdfBtn: $('downloadPdfBtn'),
-  downloadHtmlBtn: $('downloadHtmlBtn'),
-  downloadTxtBtn: $('downloadTxtBtn'),
-  downloadZipImagesBtn: $('downloadZipImagesBtn'),
-  previewWrapper: $('previewWrapper'),
-  statusText: $('statusText'),
-  previewSpreadBtn: $('previewSpreadBtn'),
-  previewSingleBtn: $('previewSingleBtn'),
-  loadingOverlay: $('loadingOverlay'),
-  loadingTitle: $('loadingTitle'),
-  loadingDesc: $('loadingDesc'),
-  measureRoot: $('measureRoot'),
-  pageTemplate: $('pageTemplate')
+  bookTitle: document.getElementById('bookTitle'),
+  bookAuthor: document.getElementById('bookAuthor'),
+  bookDescription: document.getElementById('bookDescription'),
+  coverInput: document.getElementById('coverInput'),
+  coverPreview: document.getElementById('coverPreview'),
+  coverPlaceholder: document.getElementById('coverPlaceholder'),
+  styleInput: document.getElementById('styleInput'),
+  styleCanvas: document.getElementById('styleCanvas'),
+  styleImagePreview: document.getElementById('styleImagePreview'),
+  stylePlaceholder: document.getElementById('stylePlaceholder'),
+  stylePreset: document.getElementById('stylePreset'),
+  fontSelect: document.getElementById('fontSelect'),
+  bgColor: document.getElementById('bgColor'),
+  accentColor: document.getElementById('accentColor'),
+  partsInput: document.getElementById('partsInput'),
+  partsList: document.getElementById('partsList'),
+  addManualPart: document.getElementById('addManualPart'),
+  clearParts: document.getElementById('clearParts'),
+  refreshPreview: document.getElementById('refreshPreview'),
+  exportBtn: document.getElementById('exportBtn'),
+  exportFormat: document.getElementById('exportFormat'),
+  downloadZipBtn: document.getElementById('downloadZipBtn'),
+  partsCount: document.getElementById('partsCount'),
+  wordsCount: document.getElementById('wordsCount'),
+  pagesCount: document.getElementById('pagesCount'),
+  previewBook: document.getElementById('previewBook'),
+  partTemplate: document.getElementById('partTemplate')
 };
 
-function escapeHtml(str='') {
-  return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function uid() {
+  return state.nextId++;
 }
 
-function slugify(s='book'){
-  return s.toLowerCase().trim().replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-+|-+$/g,'') || 'book';
+function escapeHtml(str = '') {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
-function showLoading(title, desc){
-  els.loadingTitle.textContent = title;
-  els.loadingDesc.textContent = desc || '';
-  els.loadingOverlay.classList.remove('hidden');
+function downloadFile(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
-function hideLoading(){
-  els.loadingOverlay.classList.add('hidden');
+function dataUrlToBlob(dataUrl) {
+  const [header, data] = dataUrl.split(',');
+  const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+  const binary = atob(data);
+  const array = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+  return new Blob([array], { type: mime });
 }
 
-function setStatus(text){
-  els.statusText.textContent = text;
-}
-
-function readFileAsDataURL(file){
-  return new Promise((resolve,reject)=>{
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
@@ -87,596 +92,682 @@ function readFileAsDataURL(file){
   });
 }
 
-function readFileAsText(file){
-  return new Promise((resolve,reject)=>{
+function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result||''));
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
     reader.readAsText(file, 'utf-8');
   });
 }
 
-async function parseDocx(file){
-  const buffer = await file.arrayBuffer();
-  const result = await mammoth.extractRawText({ arrayBuffer: buffer });
-  return result.value || '';
+function countWords(text) {
+  return (text || '').trim().split(/\s+/).filter(Boolean).length;
 }
 
-function applyThemePreset(){
-  const theme = els.themeSelect.value;
-  document.body.classList.remove('theme-luxury-dark','theme-classic-paper','theme-horror-ink','theme-minimal-light');
-  document.body.classList.add(`theme-${theme}`);
-
-  const presets = {
-    'luxury-dark': { appBg:'#0e1118', pageBg:'#f7f1e3', textColor:'#1b1511', accent:'#b78b47' },
-    'classic-paper': { appBg:'#2d241b', pageBg:'#f5ecd7', textColor:'#2b2015', accent:'#8a6a3f' },
-    'horror-ink': { appBg:'#08090d', pageBg:'#efe6d5', textColor:'#221313', accent:'#8f2b2b' },
-    'minimal-light': { appBg:'#eceff4', pageBg:'#ffffff', textColor:'#1a1f28', accent:'#5a6cff' }
-  };
-  const p = presets[theme];
-  els.appBg.value = p.appBg;
-  els.pageBg.value = p.pageBg;
-  els.textColor.value = p.textColor;
-  els.accentColor.value = p.accent;
-  applyCustomVars();
+function classifyParagraph(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  const quoteLike = /^(?:["“”'«»]|[-–—]|قال|قلت|سألت|أجاب|همس|صرخ|ردّ|رد|قالت|أجابت|همست)\b/.test(trimmed);
+  const strongLike = (/[.!؟…]$/.test(trimmed) && trimmed.length <= 120) || trimmed.length <= 65;
+  if (quoteLike) return 'dialogue';
+  if (strongLike && trimmed.length < 130) return 'highlight';
+  return '';
 }
 
-function applyCustomVars(){
-  const root = document.documentElement;
-  root.style.setProperty('--app-bg', els.appBg.value);
-  root.style.setProperty('--page-bg', els.pageBg.value);
-  root.style.setProperty('--page-text', els.textColor.value);
-  root.style.setProperty('--accent', els.accentColor.value);
-  root.style.setProperty('--font-family', els.fontSelect.value);
-  root.style.setProperty('--font-size', `${els.fontSize.value}px`);
-  root.style.setProperty('--line-height', els.lineHeight.value);
-  root.style.setProperty('--page-padding', `${els.pagePadding.value}px`);
-
-  const sizes = {
-    'a5': ['430px','610px'],
-    'b5': ['470px','665px'],
-    '6x9': ['450px','675px']
-  };
-  const [w,h] = sizes[els.pageSize.value];
-  root.style.setProperty('--page-w', w);
-  root.style.setProperty('--page-h', h);
+function styleFromPreset(preset) {
+  switch (preset) {
+    case 'luxury': return { bg: '#f7f1e4', accent: '#7a3f1e', font: 'Amiri' };
+    case 'dark': return { bg: '#efe7da', accent: '#53311f', font: 'Tajawal' };
+    case 'minimal': return { bg: '#f8f8f6', accent: '#2f3d4d', font: 'Cairo' };
+    case 'classic': return { bg: '#f6f1e8', accent: '#6a3b1f', font: 'Amiri' };
+    default:
+      return {
+        bg: state.inferred.bgColor,
+        accent: state.inferred.accentColor,
+        font: state.inferred.font
+      };
+  }
 }
 
-function addPart(title, content){
-  const cleanTitle = (title || `بارت ${state.parts.length + 1}`).trim();
-  const cleanContent = (content || '').trim();
-  if(!cleanContent) return;
-  state.parts.push({ id: crypto.randomUUID(), title: cleanTitle, content: cleanContent });
-  renderPartsList();
-  els.partTitle.value = '';
-  els.partContent.value = '';
-  generatePreview();
+function applyBookTheme() {
+  const presetVals = styleFromPreset(els.stylePreset.value);
+  const bg = els.bgColor.value || presetVals.bg;
+  const accent = els.accentColor.value || presetVals.accent;
+  const chosenFont = els.fontSelect.value === 'auto' ? presetVals.font : els.fontSelect.value;
+
+  document.documentElement.style.setProperty('--primary', bg);
+  document.documentElement.style.setProperty('--accent', accent);
+  document.documentElement.style.setProperty('--book-font', `'${chosenFont}', serif`);
 }
 
-function renderPartsList(){
+function syncStats() {
+  els.partsCount.textContent = state.parts.length;
+  els.wordsCount.textContent = state.parts.reduce((sum, part) => sum + countWords(part.content), 0).toLocaleString('en-US');
+  els.pagesCount.textContent = state.renderedPages.length;
+}
+
+function renderPartsEditor() {
   els.partsList.innerHTML = '';
-  if(!state.parts.length){
-    els.partsList.innerHTML = '<div class="part-item"><p>لا توجد أجزاء مضافة بعد.</p></div>';
+  state.parts.forEach((part, index) => {
+    const fragment = els.partTemplate.content.cloneNode(true);
+    const card = fragment.querySelector('.part-card');
+    card.dataset.id = part.id;
+
+    const titleInput = fragment.querySelector('.part-title-input');
+    const contentInput = fragment.querySelector('.part-content-input');
+    titleInput.value = part.title;
+    contentInput.value = part.content;
+
+    titleInput.addEventListener('input', e => {
+      part.title = e.target.value;
+      renderPreview();
+    });
+
+    contentInput.addEventListener('input', e => {
+      part.content = e.target.value;
+      renderPreview();
+    });
+
+    fragment.querySelector('.move-up').addEventListener('click', () => {
+      if (index === 0) return;
+      [state.parts[index - 1], state.parts[index]] = [state.parts[index], state.parts[index - 1]];
+      renderPartsEditor();
+      renderPreview();
+    });
+
+    fragment.querySelector('.move-down').addEventListener('click', () => {
+      if (index === state.parts.length - 1) return;
+      [state.parts[index + 1], state.parts[index]] = [state.parts[index], state.parts[index + 1]];
+      renderPartsEditor();
+      renderPreview();
+    });
+
+    fragment.querySelector('.delete-part').addEventListener('click', () => {
+      state.parts = state.parts.filter(p => p.id !== part.id);
+      renderPartsEditor();
+      renderPreview();
+    });
+
+    els.partsList.appendChild(fragment);
+  });
+  syncStats();
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+}
+
+function adjustColor(hex, amount = 0) {
+  let usePound = false;
+  if (hex[0] === '#') {
+    hex = hex.slice(1);
+    usePound = true;
+  }
+  const num = parseInt(hex, 16);
+  let r = (num >> 16) + amount;
+  let g = ((num >> 8) & 0x00FF) + amount;
+  let b = (num & 0x0000FF) + amount;
+  r = Math.max(Math.min(255, r), 0);
+  g = Math.max(Math.min(255, g), 0);
+  b = Math.max(Math.min(255, b), 0);
+  return (usePound ? '#' : '') + (b | (g << 8) | (r << 16)).toString(16).padStart(6, '0');
+}
+
+function extractPaletteFromCanvas(canvas) {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  let r = 0, g = 0, b = 0, count = 0;
+
+  for (let i = 0; i < data.length; i += 40) {
+    r += data[i];
+    g += data[i + 1];
+    b += data[i + 2];
+    count++;
+  }
+
+  const avgR = Math.round(r / count);
+  const avgG = Math.round(g / count);
+  const avgB = Math.round(b / count);
+  const main = rgbToHex(avgR, avgG, avgB);
+  const luminance = (0.299 * avgR + 0.587 * avgG + 0.114 * avgB) / 255;
+
+  state.inferred.accentColor = luminance > 0.55 ? adjustColor(main, -70) : adjustColor(main, 40);
+  state.inferred.bgColor = luminance > 0.55 ? '#f7f1e8' : '#efe7da';
+  state.inferred.font = luminance > 0.45 ? 'Amiri' : 'Tajawal';
+  state.inferred.preset = luminance > 0.45 ? 'classic' : 'dark';
+
+  if (els.stylePreset.value === 'auto') {
+    els.bgColor.value = state.inferred.bgColor;
+    els.accentColor.value = state.inferred.accentColor;
+  }
+
+  renderPreview();
+}
+
+async function handleStyleUpload(file) {
+  if (!file) return;
+  const name = file.name.toLowerCase();
+
+  if (name.endsWith('.pdf')) {
+    const buffer = await readFileAsArrayBuffer(file);
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1.3 });
+    const canvas = els.styleCanvas;
+    const context = canvas.getContext('2d');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: context, viewport }).promise;
+    state.styleDataUrl = canvas.toDataURL('image/png');
+    els.styleCanvas.classList.remove('hidden');
+    els.styleImagePreview.classList.add('hidden');
+    els.stylePlaceholder.classList.add('hidden');
+    extractPaletteFromCanvas(canvas);
     return;
   }
 
-  state.parts.forEach((part, index) => {
-    const item = document.createElement('div');
-    item.className = 'part-item';
-    item.innerHTML = `
-      <h4>${escapeHtml(part.title)}</h4>
-      <p>${escapeHtml(part.content.slice(0, 140))}${part.content.length > 140 ? '...' : ''}</p>
-      <div class="part-actions">
-        <button data-action="up">⬆️ أعلى</button>
-        <button data-action="down">⬇️ أسفل</button>
-        <button data-action="edit">✏️ تعديل</button>
-        <button data-action="delete" class="danger">🗑️ حذف</button>
-      </div>
-    `;
-    item.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const action = btn.dataset.action;
-        if(action === 'up' && index > 0){
-          [state.parts[index-1], state.parts[index]] = [state.parts[index], state.parts[index-1]];
-        }
-        if(action === 'down' && index < state.parts.length - 1){
-          [state.parts[index+1], state.parts[index]] = [state.parts[index], state.parts[index+1]];
-        }
-        if(action === 'edit'){
-          const newTitle = prompt('عنوان البارت', part.title);
-          if(newTitle === null) return;
-          const newContent = prompt('نص البارت', part.content);
-          if(newContent === null) return;
-          part.title = newTitle.trim() || part.title;
-          part.content = newContent.trim() || part.content;
-        }
-        if(action === 'delete'){
-          state.parts = state.parts.filter(p => p.id !== part.id);
-        }
-        renderPartsList();
-        generatePreview();
-      });
-    });
-    els.partsList.appendChild(item);
-  });
-}
+  const dataUrl = await readFileAsDataURL(file);
+  state.styleDataUrl = dataUrl;
+  els.styleImagePreview.src = dataUrl;
+  els.styleImagePreview.classList.remove('hidden');
+  els.styleCanvas.classList.add('hidden');
+  els.stylePlaceholder.classList.add('hidden');
 
-function buildContentBlocks(){
-  const blocks = [];
-  const settings = getSettings();
-  const isDialogue = line => settings.highlightDialogues && /^[\-–—"«]/.test(line.trim());
-  const isQuote = line => settings.highlightQuotes && line.trim().split(/\s+/).length <= 16 && line.trim().length > 0 && !/^#+/.test(line.trim());
-
-  state.parts.forEach((part) => {
-    blocks.push({ type:'chapter', html:`<div class="chapter-title">${escapeHtml(part.title)}</div>` });
-    const paragraphs = part.content
-      .replace(/\r/g,'')
-      .split(/\n\s*\n+/)
-      .map(t => t.trim())
-      .filter(Boolean);
-
-    paragraphs.forEach(p => {
-      if(/^#{1,6}\s+/.test(p)){
-        blocks.push({ type:'subheading', html:`<h3>${escapeHtml(p.replace(/^#{1,6}\s+/,''))}</h3>` });
-        return;
-      }
-      if(isDialogue(p)){
-        blocks.push({ type:'paragraph', html:`<p class="dialogue">${escapeHtml(p)}</p>` });
-        return;
-      }
-      if(isQuote(p)){
-        blocks.push({ type:'paragraph', html:`<p class="quote">${escapeHtml(p)}</p>` });
-        return;
-      }
-      blocks.push({ type:'paragraph', html:`<p>${escapeHtml(p)}</p>` });
-    });
-  });
-  return blocks;
-}
-
-function getSettings(){
-  return {
-    title: els.bookTitle.value.trim() || 'بدون عنوان',
-    author: els.bookAuthor.value.trim() || 'بدون مؤلف',
-    description: els.bookDescription.value.trim(),
-    dedication: els.bookDedication.value.trim(),
-    rights: els.bookRights.value.trim(),
-    showFrontMatter: els.showFrontMatter.checked,
-    showPageNumbers: els.showPageNumbers.checked,
-    font: els.fontSelect.value
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const ratio = img.width / img.height;
+    canvas.width = 250;
+    canvas.height = Math.max(160, Math.round(250 / ratio));
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    extractPaletteFromCanvas(canvas);
   };
+  img.src = dataUrl;
 }
 
-function createPageCard(innerHTML, pageNum=null, extraClass=''){
-  const frag = els.pageTemplate.content.cloneNode(true);
-  const article = frag.querySelector('.page-card');
-  const sheet = frag.querySelector('.page-sheet');
-  const inner = frag.querySelector('.page-inner');
-  const num = frag.querySelector('.page-number');
-  if(extraClass) sheet.classList.add(extraClass);
-  inner.innerHTML = innerHTML;
-  if(pageNum && els.showPageNumbers.checked) num.textContent = pageNum;
-  else num.textContent = '';
-  const btn = frag.querySelector('.download-page-btn');
-  btn.addEventListener('click', async () => {
-    await downloadSinglePage(sheet, pageNum || 'cover');
-  });
-  return frag;
+function addPart(title = '', content = '') {
+  state.parts.push({ id: uid(), title, content });
+  renderPartsEditor();
+  renderPreview();
 }
 
-function createFrontMatterPages(){
-  const pages = [];
-  const s = getSettings();
-  if(state.coverDataUrl){
-    pages.push({
-      html: `
-        <div class="cover-page">
-          <img src="${state.coverDataUrl}" alt="cover">
-          <div class="cover-overlay">
-            <h1>${escapeHtml(s.title)}</h1>
-            <p>${escapeHtml(s.author)}</p>
-          </div>
-        </div>
-      `,
-      rawType:'cover'
-    });
+async function parseTextFile(file) {
+  const baseTitle = file.name.replace(/\.[^.]+$/, '');
+  if (file.name.toLowerCase().endsWith('.docx')) {
+    const buffer = await readFileAsArrayBuffer(file);
+    const result = await window.mammoth.extractRawText({ arrayBuffer: buffer });
+    return { title: baseTitle, content: result.value || '' };
   }
+  const text = await readFileAsText(file);
+  return { title: baseTitle, content: text || '' };
+}
+
+function getBookTitle() {
+  return els.bookTitle.value.trim() || 'عنوان كتابك';
+}
+
+function getBookAuthor() {
+  return els.bookAuthor.value.trim() || 'اسم المؤلف';
+}
+
+function getBookDescription() {
+  return els.bookDescription.value.trim() || 'اكتب وصف الكتاب من الشريط الجانبي لتظهر المعاينة هنا بشكل أنيق.';
+}
+
+function createPageCard(pageNo, innerHtml, extraClass = '') {
+  const card = document.createElement('article');
+  card.className = 'preview-page-card';
+  card.innerHTML = `
+    <div class="preview-card-toolbar">
+      <span>صفحة ${pageNo}</span>
+      <button class="page-download-btn" type="button" data-page-no="${pageNo}">تنزيل الصفحة</button>
+    </div>
+    <div class="book-page ${extraClass}" data-page-no="${pageNo}">
+      ${innerHtml}
+    </div>
+  `;
+  return card;
+}
+
+function createChapterPageElement(title, pageNo, isContinuation = false) {
+  const page = document.createElement('div');
+  page.className = 'book-page chapter-page export-page';
+  page.dataset.pageNo = pageNo;
+  page.innerHTML = `
+    <h2>${escapeHtml(title)}${isContinuation ? ' <span class="continued-mark">— متابعة</span>' : ''}</h2>
+    <div class="chapter-body"></div>
+    <div class="page-number">${pageNo}</div>
+  `;
+  return page;
+}
+
+function createMeasureRoot() {
+  const root = document.createElement('div');
+  root.className = 'export-root export-measure-root';
+  root.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(root);
+  return root;
+}
+
+function extractParagraphs(content) {
+  const paragraphs = (content || '')
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)
+    .map(p => p.trim())
+    .filter(Boolean);
+  return paragraphs.length ? paragraphs : ['لا يوجد نص في هذا البارت.'];
+}
+
+function paginatePart(title, content, startPageNo) {
+  const pages = [];
+  const measureRoot = createMeasureRoot();
+  const paragraphs = extractParagraphs(content);
+  let pageNo = startPageNo;
+  let currentPage = createChapterPageElement(title, pageNo, false);
+  let body = currentPage.querySelector('.chapter-body');
+  measureRoot.appendChild(currentPage);
+
+  for (const paragraph of paragraphs) {
+    const p = document.createElement('p');
+    p.className = classifyParagraph(paragraph);
+    p.textContent = paragraph;
+    body.appendChild(p);
+
+    if (body.scrollHeight > body.clientHeight + 1) {
+      p.remove();
+      pages.push({ pageNo, element: currentPage.cloneNode(true), title, isContinuation: pageNo !== startPageNo });
+      pageNo += 1;
+      currentPage.remove();
+      currentPage = createChapterPageElement(title, pageNo, true);
+      body = currentPage.querySelector('.chapter-body');
+      measureRoot.appendChild(currentPage);
+      const retry = document.createElement('p');
+      retry.className = classifyParagraph(paragraph);
+      retry.textContent = paragraph;
+      body.appendChild(retry);
+    }
+  }
+
+  pages.push({ pageNo, element: currentPage.cloneNode(true), title, isContinuation: pageNo !== startPageNo });
+  measureRoot.remove();
+  return pages;
+}
+
+function buildRenderedPages() {
+  applyBookTheme();
+  const pages = [];
+  let pageNo = 1;
+
   pages.push({
+    pageNo,
+    type: 'cover',
     html: `
-      <div class="title-page">
-        <div>
-          <h1>${escapeHtml(s.title)}</h1>
-          <p class="meta">${escapeHtml(s.author)}</p>
-        </div>
+      <div class="cover-art-area" style="${state.coverDataUrl ? `background-image: linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.55)), url('${state.coverDataUrl}')` : ''}"></div>
+      <div class="cover-overlay"></div>
+      <div class="cover-content">
+        <p class="book-tag">رواية / كتاب رقمي</p>
+        <h1>${escapeHtml(getBookTitle())}</h1>
+        <p>${escapeHtml(getBookAuthor())}</p>
       </div>
+      <div class="page-number light">${pageNo}</div>
     `,
-    rawType:'title'
+    className: 'cover-page'
   });
-  if(s.description){
-    pages.push({
-      html:`<div class="section-page"><div><h2>عن الكتاب</h2><p>${escapeHtml(s.description)}</p></div></div>`,
-      rawType:'about'
-    });
-  }
-  if(s.dedication){
-    pages.push({
-      html:`<div class="section-page"><div><h2>إهداء</h2><p>${escapeHtml(s.dedication)}</p></div></div>`,
-      rawType:'dedication'
-    });
-  }
-  if(s.rights){
-    pages.push({
-      html:`<div class="section-page"><div><h2>الحقوق</h2><p>${escapeHtml(s.rights)}</p></div></div>`,
-      rawType:'rights'
-    });
-  }
-  if(state.parts.length){
-    const toc = state.parts.map((p,i)=>`<p>${i+1}. ${escapeHtml(p.title)}</p>`).join('');
-    pages.push({
-      html:`<div><h2 style="text-align:center">الفهرس</h2>${toc}</div>`,
-      rawType:'toc'
-    });
-  }
-  return pages;
-}
+  pageNo += 1;
 
-function createMeasurePage(){
-  const sheet = document.createElement('div');
-  sheet.className = 'page-sheet';
-  sheet.style.position = 'absolute';
-  sheet.style.left = '-99999px';
-  sheet.style.top = '0';
-  const inner = document.createElement('div');
-  inner.className = 'page-inner';
-  sheet.appendChild(inner);
-  els.measureRoot.appendChild(sheet);
-  return { sheet, inner };
-}
-
-function paginateBlocks(blocks){
-  const { sheet, inner } = createMeasurePage();
-  const pages = [];
-  let current = '';
-
-  const maxHeight = inner.clientHeight;
-
-  function fits(html){
-    inner.innerHTML = html;
-    return inner.scrollHeight <= maxHeight;
-  }
-
-  function pushCurrent(){
-    if(current.trim()){
-      pages.push({ html: current, rawType:'content' });
-      current = '';
-    }
-  }
-
-  for(const block of blocks){
-    const candidate = current + block.html;
-    if(!current || fits(candidate)){
-      current = candidate;
-    } else {
-      pushCurrent();
-      if(fits(block.html)){
-        current = block.html;
-      } else {
-        // Split huge paragraph by sentences
-        const text = block.html
-          .replace(/<\/?p[^>]*>/g,'')
-          .replace(/<\/?div[^>]*>/g,'')
-          .replace(/<\/?h3[^>]*>/g,'');
-        const sentences = text.split(/(?<=[\.\!\؟\!])\s+|(?<=،)\s+/u).filter(Boolean);
-        let temp = '';
-        const cls = block.html.includes('class="dialogue"') ? 'dialogue' : block.html.includes('class="quote"') ? 'quote' : '';
-        for(const sentence of sentences){
-          const wrapped = `<p ${cls ? `class="${cls}"` : ''}>${escapeHtml(sentence)}</p>`;
-          if(!temp || fits(temp + wrapped)){
-            temp += wrapped;
-          } else {
-            pages.push({ html: temp, rawType:'content' });
-            temp = wrapped;
-          }
-        }
-        current = temp;
-      }
-    }
-  }
-  pushCurrent();
-  sheet.remove();
-  return pages;
-}
-
-async function ensureAssetsReady(){
-  try{ if(document.fonts?.ready) await document.fonts.ready; } catch {}
-  const imgs = Array.from(els.previewWrapper.querySelectorAll('img'));
-  await Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(res => {
-    img.onload = img.onerror = () => res();
-  })));
-}
-
-async function generatePreview(){
-  applyCustomVars();
-  els.previewWrapper.innerHTML = '';
-  const settings = getSettings();
-  const pages = [];
-  if(settings.showFrontMatter) pages.push(...createFrontMatterPages());
-  pages.push(...paginateBlocks(buildContentBlocks()));
-  state.pages = pages;
-
-  pages.forEach((page, idx) => {
-    const node = createPageCard(page.html, idx + 1, page.rawType === 'cover' ? 'cover-host' : '');
-    els.previewWrapper.appendChild(node);
+  pages.push({
+    pageNo,
+    type: 'intro',
+    html: `
+      <h2>عن الكتاب</h2>
+      <p>${escapeHtml(getBookDescription())}</p>
+      <div class="page-number">${pageNo}</div>
+    `,
+    className: 'intro-page'
   });
+  pageNo += 1;
 
-  if(!pages.length){
-    els.previewWrapper.innerHTML = `
-      <div class="glass" style="padding:28px;text-align:center;max-width:700px">
-        <h3>لا توجد صفحات للمعاينة بعد</h3>
-        <p style="color:var(--muted)">أضف عنوانًا أو أجزاءً ليبدأ تكوين الكتاب.</p>
-      </div>
-    `;
-  }
-  setStatus(`عدد الصفحات: ${pages.length}`);
-  await ensureAssetsReady();
-}
+  const tocStartPage = pageNo + 1;
+  const tocEntries = [];
+  const chapterPages = [];
 
-async function downloadSinglePage(sheet, pageLabel){
-  showLoading('تجهيز الصفحة', `جارٍ تجهيز الصفحة ${pageLabel}`);
-  await ensureAssetsReady();
-  const canvas = await html2canvas(sheet, { scale: 2, backgroundColor: null, useCORS: true });
-  canvas.toBlob(blob => {
-    saveAs(blob, `${slugify(els.bookTitle.value || 'book')}-page-${pageLabel}.png`);
-    hideLoading();
-  }, 'image/png');
-}
-
-async function exportPdf(){
-  const sheets = Array.from(els.previewWrapper.querySelectorAll('.page-sheet'));
-  if(!sheets.length) return alert('لا توجد صفحات لتصديرها.');
-  showLoading('تجهيز PDF', 'جارٍ تحويل صفحات المعاينة نفسها إلى PDF');
-  await ensureAssetsReady();
-  const { jsPDF } = window.jspdf;
-  let pdf = null;
-
-  for(let i=0; i<sheets.length; i++){
-    els.loadingDesc.textContent = `الصفحة ${i+1} من ${sheets.length}`;
-    const canvas = await html2canvas(sheets[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-    const imgData = canvas.toDataURL('image/jpeg', 0.98);
-    const widthPx = canvas.width;
-    const heightPx = canvas.height;
-    const mmPerPx = 0.264583;
-    const widthMm = widthPx * mmPerPx;
-    const heightMm = heightPx * mmPerPx;
-
-    if(!pdf){
-      pdf = new jsPDF({
-        orientation: heightMm >= widthMm ? 'portrait' : 'landscape',
-        unit: 'mm',
-        format: [widthMm, heightMm]
+  state.parts.forEach((part, index) => {
+    const title = part.title?.trim() || `البارت ${index + 1}`;
+    const pagesForPart = paginatePart(title, part.content || '', pageNo);
+    tocEntries.push({ index: index + 1, title, pageNo });
+    pagesForPart.forEach(item => {
+      chapterPages.push({
+        pageNo: item.pageNo,
+        type: 'chapter',
+        node: item.element,
+        title: item.title,
+        className: 'chapter-page'
       });
-    } else {
-      pdf.addPage([widthMm, heightMm], heightMm >= widthMm ? 'portrait' : 'landscape');
-    }
-    pdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
-  }
-  pdf.save(`${slugify(els.bookTitle.value || 'book')}.pdf`);
-  hideLoading();
-}
-
-async function exportZipImages(){
-  const sheets = Array.from(els.previewWrapper.querySelectorAll('.page-sheet'));
-  if(!sheets.length) return alert('لا توجد صفحات.');
-  showLoading('تجهيز ZIP', 'جارٍ جمع صفحات الكتاب كصور');
-  await ensureAssetsReady();
-  const zip = new JSZip();
-  for(let i=0;i<sheets.length;i++){
-    els.loadingDesc.textContent = `الصفحة ${i+1} من ${sheets.length}`;
-    const canvas = await html2canvas(sheets[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-    const data = canvas.toDataURL('image/png').split(',')[1];
-    zip.file(`page-${String(i+1).padStart(3,'0')}.png`, data, { base64: true });
-  }
-  const blob = await zip.generateAsync({ type: 'blob' });
-  saveAs(blob, `${slugify(els.bookTitle.value || 'book')}-pages.zip`);
-  hideLoading();
-}
-
-function exportTxt(){
-  const s = getSettings();
-  let text = `${s.title}\n${s.author}\n\n`;
-  if(s.description) text += `الوصف:\n${s.description}\n\n`;
-  state.parts.forEach((p, i) => {
-    text += `${i+1}. ${p.title}\n\n${p.content}\n\n------------------------\n\n`;
+    });
+    pageNo += pagesForPart.length;
   });
-  const blob = new Blob([text], { type:'text/plain;charset=utf-8' });
-  saveAs(blob, `${slugify(s.title)}.txt`);
+
+  pages.push({
+    pageNo: tocStartPage - 1,
+    type: 'toc',
+    html: `
+      <h2>الفهرس</h2>
+      <div class="toc-list">
+        ${tocEntries.map(entry => `<div class="toc-item"><span class="chapter-num">${entry.index}</span><span>${escapeHtml(entry.title)}</span><span>${entry.pageNo}</span></div>`).join('') || '<p>لا توجد بارتات بعد.</p>'}
+      </div>
+      <div class="page-number">${tocStartPage - 1}</div>
+    `,
+    className: 'toc-page'
+  });
+
+  return [...pages, ...chapterPages];
 }
 
-function exportHtml(){
-  const s = getSettings();
-  const pageSheets = Array.from(els.previewWrapper.querySelectorAll('.page-sheet')).map(sheet => sheet.outerHTML).join('\n');
-  const html = `<!doctype html>
+function renderPreview() {
+  state.renderedPages = buildRenderedPages();
+  els.previewBook.innerHTML = '';
+
+  state.renderedPages.forEach(page => {
+    if (page.node) {
+      const card = document.createElement('article');
+      card.className = 'preview-page-card';
+      card.innerHTML = `
+        <div class="preview-card-toolbar">
+          <span>صفحة ${page.pageNo}</span>
+          <button class="page-download-btn" type="button" data-page-no="${page.pageNo}">تنزيل الصفحة</button>
+        </div>
+      `;
+      const node = page.node.cloneNode(true);
+      node.classList.remove('export-page');
+      card.appendChild(node);
+      els.previewBook.appendChild(card);
+    } else {
+      els.previewBook.appendChild(createPageCard(page.pageNo, page.html, page.className));
+    }
+  });
+
+  syncStats();
+}
+
+function getStylesheetText() {
+  return Array.from(document.styleSheets)
+    .map(sheet => {
+      try {
+        return Array.from(sheet.cssRules || []).map(rule => rule.cssText).join('\n');
+      } catch {
+        return '';
+      }
+    })
+    .join('\n');
+}
+
+function makeExportHtmlDocument() {
+  renderPreview();
+  return `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escapeHtml(s.title)}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(getBookTitle())}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;600;700;800&family=El+Messiri:wght@400;600;700&family=Lateef:wght@400;500;700&family=Markazi+Text:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>${document.querySelector('style')?.textContent || ''}</style>
-<link rel="stylesheet" href="styles.css">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;700&family=Marhey:wght@400;700&family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+<style>${getStylesheetText()}</style>
 </head>
-<body style="padding:20px;background:${els.appBg.value}">
-<div class="preview-wrapper single">${pageSheets}</div>
-</body></html>`;
-  const blob = new Blob([html], { type:'text/html;charset=utf-8' });
-  saveAs(blob, `${slugify(s.title)}.html`);
+<body class="export-mode">
+<div class="export-wrap">${els.previewBook.innerHTML}</div>
+</body>
+</html>`;
 }
 
-function serializeProject(){
-  return {
-    meta: {
-      title: els.bookTitle.value,
-      author: els.bookAuthor.value,
-      description: els.bookDescription.value,
-      dedication: els.bookDedication.value,
-      rights: els.bookRights.value
-    },
-    style: {
-      theme: els.themeSelect.value,
-      pageSize: els.pageSize.value,
-      font: els.fontSelect.value,
-      fontSize: els.fontSize.value,
-      lineHeight: els.lineHeight.value,
-      pagePadding: els.pagePadding.value,
-      pageBg: els.pageBg.value,
-      textColor: els.textColor.value,
-      accentColor: els.accentColor.value,
-      appBg: els.appBg.value,
-      showFrontMatter: els.showFrontMatter.checked,
-      showPageNumbers: els.showPageNumbers.checked,
-      highlightDialogues: els.highlightDialogues.checked,
-      highlightQuotes: els.highlightQuotes.checked
-    },
-    coverDataUrl: state.coverDataUrl,
-    parts: state.parts
-  };
+function makePlainTextExport() {
+  const lines = [getBookTitle(), getBookAuthor(), '', 'الوصف', '------', getBookDescription(), ''];
+  state.parts.forEach((part, i) => {
+    lines.push(`${i + 1}. ${part.title || `البارت ${i + 1}`}`);
+    lines.push('');
+    lines.push(part.content || '');
+    lines.push('');
+    lines.push('='.repeat(40));
+    lines.push('');
+  });
+  return lines.join('\n');
 }
 
-function applyProject(data){
-  const m = data.meta || {};
-  const s = data.style || {};
-  els.bookTitle.value = m.title || '';
-  els.bookAuthor.value = m.author || '';
-  els.bookDescription.value = m.description || '';
-  els.bookDedication.value = m.dedication || '';
-  els.bookRights.value = m.rights || '';
-  els.themeSelect.value = s.theme || 'luxury-dark';
-  els.pageSize.value = s.pageSize || 'a5';
-  els.fontSelect.value = s.font || "'Amiri', serif";
-  els.fontSize.value = s.fontSize || 20;
-  els.lineHeight.value = s.lineHeight || 1.95;
-  els.pagePadding.value = s.pagePadding || 44;
-  els.pageBg.value = s.pageBg || '#f7f1e3';
-  els.textColor.value = s.textColor || '#1b1511';
-  els.accentColor.value = s.accentColor || '#b78b47';
-  els.appBg.value = s.appBg || '#0e1118';
-  els.showFrontMatter.checked = s.showFrontMatter ?? true;
-  els.showPageNumbers.checked = s.showPageNumbers ?? true;
-  els.highlightDialogues.checked = s.highlightDialogues ?? true;
-  els.highlightQuotes.checked = s.highlightQuotes ?? true;
-  state.coverDataUrl = data.coverDataUrl || '';
-  state.parts = Array.isArray(data.parts) ? data.parts : [];
-  applyThemePreset();
-  renderPartsList();
-  generatePreview();
+function setBusyState(busy, label = 'إنشاء الكتاب وتنزيله') {
+  state.isExporting = busy;
+  els.exportBtn.disabled = busy;
+  els.downloadZipBtn.disabled = busy;
+  els.refreshPreview.disabled = busy;
+  els.exportBtn.textContent = busy ? 'جارٍ التصدير...' : label;
 }
 
-function saveProjectLocal(){
-  localStorage.setItem('bookforge-project', JSON.stringify(serializeProject()));
-  alert('تم حفظ المشروع محليًا.');
-}
-
-function loadProjectLocal(){
-  const raw = localStorage.getItem('bookforge-project');
-  if(!raw) return alert('لا يوجد مشروع محفوظ.');
-  applyProject(JSON.parse(raw));
-}
-
-async function importPartsFromFiles(){
-  const files = Array.from(els.partsFiles.files || []);
-  if(!files.length) return alert('اختر ملفات أولًا.');
-  showLoading('استيراد الملفات', 'جارٍ قراءة الملفات...');
-  for(const file of files){
-    let text = '';
-    if(file.name.toLowerCase().endsWith('.docx')) text = await parseDocx(file);
-    else text = await readFileAsText(file);
-    addPart(file.name.replace(/\.[^.]+$/, ''), text);
+async function waitForFontsAndImages(root) {
+  if (document.fonts?.ready) {
+    try { await document.fonts.ready; } catch {}
   }
-  hideLoading();
+
+  const images = Array.from(root.querySelectorAll('img'));
+  await Promise.all(images.map(img => new Promise(resolve => {
+    if (img.complete) return resolve();
+    img.onload = resolve;
+    img.onerror = resolve;
+  })));
+
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
-function bindEvents(){
-  els.addPartBtn.addEventListener('click', () => addPart(els.partTitle.value, els.partContent.value));
-  els.clearPartsBtn.addEventListener('click', () => {
-    if(confirm('حذف كل الأجزاء؟')){
-      state.parts = [];
-      renderPartsList();
-      generatePreview();
+async function createLockedExportRoot() {
+  renderPreview();
+  applyBookTheme();
+  const root = document.createElement('div');
+  root.className = 'export-root';
+  root.setAttribute('aria-hidden', 'true');
+
+  state.renderedPages.forEach(page => {
+    let pageElement;
+    if (page.node) {
+      pageElement = page.node.cloneNode(true);
+    } else {
+      pageElement = document.createElement('div');
+      pageElement.className = `book-page ${page.className || ''}`;
+      pageElement.dataset.pageNo = page.pageNo;
+      pageElement.innerHTML = page.html;
     }
+    root.appendChild(pageElement);
   });
 
-  els.coverInput.addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
-    if(!file) return;
-    state.coverDataUrl = await readFileAsDataURL(file);
-    generatePreview();
-  });
-
-  els.importPartsBtn.addEventListener('click', importPartsFromFiles);
-  els.applyThemeBtn.addEventListener('click', () => { applyThemePreset(); generatePreview(); });
-  els.generatePreviewBtn.addEventListener('click', generatePreview);
-
-  [
-    els.bookTitle, els.bookAuthor, els.bookDescription, els.bookDedication, els.bookRights,
-    els.pageSize, els.fontSelect, els.fontSize, els.lineHeight, els.pagePadding,
-    els.pageBg, els.textColor, els.accentColor, els.appBg,
-    els.showFrontMatter, els.showPageNumbers, els.highlightDialogues, els.highlightQuotes
-  ].forEach(el => el.addEventListener('input', () => {
-    applyCustomVars();
-  }));
-
-  els.previewSingleBtn.addEventListener('click', () => {
-    state.previewMode = 'single';
-    els.previewWrapper.classList.add('single');
-    els.previewWrapper.classList.remove('spread');
-    els.previewSingleBtn.classList.add('active');
-    els.previewSpreadBtn.classList.remove('active');
-  });
-  els.previewSpreadBtn.addEventListener('click', () => {
-    state.previewMode = 'spread';
-    els.previewWrapper.classList.add('spread');
-    els.previewWrapper.classList.remove('single');
-    els.previewSpreadBtn.classList.add('active');
-    els.previewSingleBtn.classList.remove('active');
-  });
-
-  els.saveProjectBtn.addEventListener('click', saveProjectLocal);
-  els.loadProjectBtn.addEventListener('click', loadProjectLocal);
-  els.exportProjectBtn.addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(serializeProject(), null, 2)], { type:'application/json' });
-    saveAs(blob, `${slugify(els.bookTitle.value || 'book')}-project.json`);
-  });
-  els.loadProjectBtn.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    els.projectFileInput.click();
-  });
-  els.projectFileInput.addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
-    if(!file) return;
-    const text = await readFileAsText(file);
-    applyProject(JSON.parse(text));
-  });
-  els.loadProjectBtn.title = 'نقرة عادية: من التخزين المحلي | ضغطة مطولة/يمين: من ملف JSON';
-
-  els.downloadPdfBtn.addEventListener('click', exportPdf);
-  els.downloadZipImagesBtn.addEventListener('click', exportZipImages);
-  els.downloadTxtBtn.addEventListener('click', exportTxt);
-  els.downloadHtmlBtn.addEventListener('click', exportHtml);
+  document.body.appendChild(root);
+  await waitForFontsAndImages(root);
+  return root;
 }
 
-function seedDemo(){
-  els.bookTitle.value = 'عنوان كتابك';
-  els.bookAuthor.value = 'اسم المؤلف';
-  els.bookDescription.value = 'يمكنك هنا كتابة وصف جميل للكتاب قبل تنزيله بصيغة PDF أو HTML أو كصور.';
-  els.bookDedication.value = 'إلى كل من يحب الكتب المصممة بعناية.';
-  els.bookRights.value = 'جميع الحقوق محفوظة.';
-  renderPartsList();
-  applyThemePreset();
-  applyCustomVars();
-  generatePreview();
+async function renderPageToDataUrl(pageElement) {
+  const canvas = await window.html2canvas(pageElement, {
+    scale: EXPORT_SCALE,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    width: PAGE_WIDTH,
+    height: PAGE_HEIGHT,
+    windowWidth: PAGE_WIDTH,
+    windowHeight: PAGE_HEIGHT,
+    scrollX: 0,
+    scrollY: 0
+  });
+  return canvas.toDataURL('image/png');
 }
 
-bindEvents();
-seedDemo();
+async function renderAllPagesToDataUrls() {
+  const root = await createLockedExportRoot();
+  try {
+    const pages = Array.from(root.querySelectorAll('.book-page'));
+    const images = [];
+    for (const pageElement of pages) {
+      images.push(await renderPageToDataUrl(pageElement));
+    }
+    return images;
+  } finally {
+    root.remove();
+  }
+}
+
+async function exportPdf(safeTitle) {
+  const images = await renderAllPagesToDataUrls();
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a5' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+
+  images.forEach((image, index) => {
+    if (index > 0) pdf.addPage('a5', 'portrait');
+    pdf.addImage(image, 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
+  });
+
+  pdf.save(`${safeTitle}.pdf`);
+}
+
+async function downloadPreviewPage(pageNo, safeTitle) {
+  const root = await createLockedExportRoot();
+  try {
+    const pageElement = root.querySelector(`.book-page[data-page-no="${pageNo}"]`);
+    if (!pageElement) throw new Error('page not found');
+    const image = await renderPageToDataUrl(pageElement);
+    downloadFile(dataUrlToBlob(image), `${safeTitle}-page-${String(pageNo).padStart(3, '0')}.png`);
+  } finally {
+    root.remove();
+  }
+}
+
+async function downloadPagesZip(safeTitle) {
+  const images = await renderAllPagesToDataUrls();
+  const zip = new window.JSZip();
+  images.forEach((image, index) => {
+    zip.file(`${safeTitle}-page-${String(index + 1).padStart(3, '0')}.png`, dataUrlToBlob(image));
+  });
+  const blob = await zip.generateAsync({ type: 'blob' });
+  downloadFile(blob, `${safeTitle}-preview-pages.zip`);
+}
+
+async function exportBook() {
+  if (!state.parts.length) {
+    alert('أضف بارتًا واحدًا على الأقل قبل التصدير.');
+    return;
+  }
+
+  const format = els.exportFormat.value;
+  const safeTitle = (els.bookTitle.value.trim() || 'book').replace(/[\\/:*?"<>|]+/g, '-');
+
+  if (format === 'txt') {
+    downloadFile(new Blob([makePlainTextExport()], { type: 'text/plain;charset=utf-8' }), `${safeTitle}.txt`);
+    return;
+  }
+
+  if (format === 'html') {
+    downloadFile(new Blob([makeExportHtmlDocument()], { type: 'text/html;charset=utf-8' }), `${safeTitle}.html`);
+    return;
+  }
+
+  setBusyState(true);
+  try {
+    await exportPdf(safeTitle);
+  } finally {
+    setBusyState(false);
+  }
+}
+
+els.coverInput.addEventListener('change', async e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const dataUrl = await readFileAsDataURL(file);
+  state.coverDataUrl = dataUrl;
+  els.coverPreview.src = dataUrl;
+  els.coverPreview.classList.remove('hidden');
+  els.coverPlaceholder.classList.add('hidden');
+  renderPreview();
+});
+
+els.styleInput.addEventListener('change', e => handleStyleUpload(e.target.files?.[0]).catch(err => {
+  console.error(err);
+  alert('تعذر تحليل الملف المرجعي. جرب صورة أو PDF آخر.');
+}));
+
+els.partsInput.addEventListener('change', async e => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  for (const file of files) {
+    try {
+      const part = await parseTextFile(file);
+      addPart(part.title, part.content);
+    } catch (err) {
+      console.error(err);
+      alert(`تعذر قراءة الملف: ${file.name}`);
+    }
+  }
+  e.target.value = '';
+});
+
+els.addManualPart.addEventListener('click', () => addPart(`البارت ${state.parts.length + 1}`, ''));
+els.clearParts.addEventListener('click', () => {
+  if (!state.parts.length) return;
+  if (!confirm('هل تريد حذف جميع البارتات؟')) return;
+  state.parts = [];
+  renderPartsEditor();
+  renderPreview();
+});
+
+[els.bookTitle, els.bookAuthor, els.bookDescription, els.stylePreset, els.fontSelect, els.bgColor, els.accentColor]
+  .forEach(el => el.addEventListener('input', renderPreview));
+
+els.refreshPreview.addEventListener('click', renderPreview);
+els.exportBtn.addEventListener('click', () => exportBook().catch(err => {
+  console.error(err);
+  setBusyState(false);
+  alert('حدث خطأ أثناء إنشاء الكتاب. جرّب مرة أخرى.');
+}));
+
+els.downloadZipBtn.addEventListener('click', async () => {
+  if (!state.parts.length) {
+    alert('أضف بارتًا واحدًا على الأقل أولًا.');
+    return;
+  }
+  const safeTitle = (els.bookTitle.value.trim() || 'book').replace(/[\\/:*?"<>|]+/g, '-');
+  setBusyState(true, 'إنشاء الكتاب وتنزيله');
+  try {
+    await downloadPagesZip(safeTitle);
+  } finally {
+    setBusyState(false);
+  }
+});
+
+els.previewBook.addEventListener('click', async e => {
+  const button = e.target.closest('.page-download-btn');
+  if (!button || state.isExporting) return;
+  const pageNo = Number(button.dataset.pageNo);
+  const safeTitle = (els.bookTitle.value.trim() || 'book').replace(/[\\/:*?"<>|]+/g, '-');
+  try {
+    button.disabled = true;
+    button.textContent = 'جارٍ التنزيل...';
+    await downloadPreviewPage(pageNo, safeTitle);
+  } catch (err) {
+    console.error(err);
+    alert('تعذر تنزيل هذه الصفحة.');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'تنزيل الصفحة';
+  }
+});
+
+addPart('البارت 1', 'ابدأ من هنا...\n\nيمكنك رفع 36 بارت أو أكثر، وترتيبها، وتعديلها، ثم تصدير الكتاب النهائي.');
+renderPartsEditor();
+renderPreview();
