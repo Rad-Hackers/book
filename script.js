@@ -3,7 +3,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
 const PAGE_WIDTH = 420;
 const PAGE_HEIGHT = 594;
-const EXPORT_SCALE = 2;
+const EXPORT_SCALE = 1.35;
 
 const state = {
   coverDataUrl: '',
@@ -366,40 +366,179 @@ function extractParagraphs(content) {
     .split(/\n{2,}/)
     .map(p => p.trim())
     .filter(Boolean);
+
   return paragraphs.length ? paragraphs : ['لا يوجد نص في هذا البارت.'];
+}
+
+function splitLongText(text, maxChars = 220) {
+  const clean = (text || '').trim();
+  if (!clean) return [];
+
+  if (clean.length <= maxChars) return [clean];
+
+  const sentenceParts = clean
+    .split(/(?<=[\.\!\؟\…\،\:])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  if (sentenceParts.length > 1) {
+    const chunks = [];
+    let current = '';
+
+    for (const part of sentenceParts) {
+      if ((current + ' ' + part).trim().length <= maxChars) {
+        current = (current + ' ' + part).trim();
+      } else {
+        if (current) chunks.push(current);
+        current = part;
+      }
+    }
+
+    if (current) chunks.push(current);
+    return chunks;
+  }
+
+  const words = clean.split(/\s+/).filter(Boolean);
+  const chunks = [];
+  let current = '';
+
+  for (const word of words) {
+    if ((current + ' ' + word).trim().length <= maxChars) {
+      current = (current + ' ' + word).trim();
+    } else {
+      if (current) chunks.push(current);
+      current = word;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function expandParagraphsForPagination(content) {
+  const paragraphs = extractParagraphs(content);
+  const expanded = [];
+
+  for (const paragraph of paragraphs) {
+    const lines = paragraph
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean);
+
+    const sourceLines = lines.length ? lines : [paragraph];
+
+    for (const line of sourceLines) {
+      const chunks = splitLongText(line, 220);
+      for (const chunk of chunks) {
+        expanded.push({
+          text: chunk,
+          className: classifyParagraph(chunk)
+        });
+      }
+    }
+
+    expanded.push({ spacer: true });
+  }
+
+  while (expanded.length && expanded[expanded.length - 1].spacer) {
+    expanded.pop();
+  }
+
+  return expanded.length ? expanded : [{ text: 'لا يوجد نص في هذا البارت.', className: '' }];
+}
+
+function appendSegment(body, segment) {
+  if (segment.spacer) {
+    const spacer = document.createElement('div');
+    spacer.className = 'paragraph-spacer';
+    body.appendChild(spacer);
+    return spacer;
+  }
+
+  const p = document.createElement('p');
+  p.className = segment.className || '';
+  p.textContent = segment.text;
+  body.appendChild(p);
+  return p;
 }
 
 function paginatePart(title, content, startPageNo) {
   const pages = [];
   const measureRoot = createMeasureRoot();
-  const paragraphs = extractParagraphs(content);
+  const segments = expandParagraphsForPagination(content);
+
   let pageNo = startPageNo;
   let currentPage = createChapterPageElement(title, pageNo, false);
   let body = currentPage.querySelector('.chapter-body');
   measureRoot.appendChild(currentPage);
 
-  for (const paragraph of paragraphs) {
-    const p = document.createElement('p');
-    p.className = classifyParagraph(paragraph);
-    p.textContent = paragraph;
-    body.appendChild(p);
+  for (const segment of segments) {
+    const node = appendSegment(body, segment);
 
     if (body.scrollHeight > body.clientHeight + 1) {
-      p.remove();
-      pages.push({ pageNo, element: currentPage.cloneNode(true), title, isContinuation: pageNo !== startPageNo });
+      node.remove();
+
+      const isPageEmpty = !body.children.length;
+
+      if (isPageEmpty && !segment.spacer && segment.text.length > 40) {
+        const fallbackChunks = splitLongText(segment.text, 120);
+
+        for (const smallChunk of fallbackChunks) {
+          const retryNode = appendSegment(body, {
+            text: smallChunk,
+            className: classifyParagraph(smallChunk)
+          });
+
+          if (body.scrollHeight > body.clientHeight + 1) {
+            retryNode.remove();
+
+            pages.push({
+              pageNo,
+              element: currentPage.cloneNode(true),
+              title,
+              isContinuation: pageNo !== startPageNo
+            });
+
+            pageNo += 1;
+            currentPage.remove();
+            currentPage = createChapterPageElement(title, pageNo, true);
+            body = currentPage.querySelector('.chapter-body');
+            measureRoot.appendChild(currentPage);
+
+            appendSegment(body, {
+              text: smallChunk,
+              className: classifyParagraph(smallChunk)
+            });
+          }
+        }
+
+        continue;
+      }
+
+      pages.push({
+        pageNo,
+        element: currentPage.cloneNode(true),
+        title,
+        isContinuation: pageNo !== startPageNo
+      });
+
       pageNo += 1;
       currentPage.remove();
       currentPage = createChapterPageElement(title, pageNo, true);
       body = currentPage.querySelector('.chapter-body');
       measureRoot.appendChild(currentPage);
-      const retry = document.createElement('p');
-      retry.className = classifyParagraph(paragraph);
-      retry.textContent = paragraph;
-      body.appendChild(retry);
+
+      appendSegment(body, segment);
     }
   }
 
-  pages.push({ pageNo, element: currentPage.cloneNode(true), title, isContinuation: pageNo !== startPageNo });
+  pages.push({
+    pageNo,
+    element: currentPage.cloneNode(true),
+    title,
+    isContinuation: pageNo !== startPageNo
+  });
+
   measureRoot.remove();
   return pages;
 }
@@ -602,9 +741,12 @@ async function renderPageToDataUrl(pageElement) {
     windowWidth: PAGE_WIDTH,
     windowHeight: PAGE_HEIGHT,
     scrollX: 0,
-    scrollY: 0
+    scrollY: 0,
+    logging: false,
+    removeContainer: true
   });
-  return canvas.toDataURL('image/png');
+
+  return canvas.toDataURL('image/jpeg', 0.92);
 }
 
 async function renderAllPagesToDataUrls() {
@@ -642,7 +784,7 @@ async function downloadPreviewPage(pageNo, safeTitle) {
     const pageElement = root.querySelector(`.book-page[data-page-no="${pageNo}"]`);
     if (!pageElement) throw new Error('page not found');
     const image = await renderPageToDataUrl(pageElement);
-    downloadFile(dataUrlToBlob(image), `${safeTitle}-page-${String(pageNo).padStart(3, '0')}.png`);
+    downloadFile(dataUrlToBlob(image), `${safeTitle}-page-${String(pageNo).padStart(3, '0')}.jpg`);
   } finally {
     root.remove();
   }
@@ -652,7 +794,7 @@ async function downloadPagesZip(safeTitle) {
   const images = await renderAllPagesToDataUrls();
   const zip = new window.JSZip();
   images.forEach((image, index) => {
-    zip.file(`${safeTitle}-page-${String(index + 1).padStart(3, '0')}.png`, dataUrlToBlob(image));
+    zip.file(`${safeTitle}-page-${String(index + 1).padStart(3, '0')}.jpg`, dataUrlToBlob(image));
   });
   const blob = await zip.generateAsync({ type: 'blob' });
   downloadFile(blob, `${safeTitle}-preview-pages.zip`);
