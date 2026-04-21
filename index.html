@@ -1,12 +1,12 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BookForge Studio Pro</title>
+  <title>BookForge Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;600;700;800&family=El+Messiri:wght@400;600;700&family=Lateef:wght@400;500;700&family=Markazi+Text:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;800&family=Marhey:wght@400;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -15,171 +15,164 @@
       <div class="brand">
         <div class="brand-badge">BF</div>
         <div>
-          <h1>BookForge Studio Pro</h1>
-          <p>صمّم كتابك، عاينه، ثم نزّله بنفس شكل المعاينة</p>
+          <h1>BookForge Studio</h1>
+          <p>صانع كتب إلكتروني احترافي من نصوصك</p>
         </div>
       </div>
 
-      <section class="panel">
-        <h2>بيانات الكتاب</h2>
-        <label>عنوان الكتاب
-          <input id="bookTitle" type="text" placeholder="مثال: The Thirteenth Silence">
-        </label>
-        <label>اسم المؤلف
-          <input id="bookAuthor" type="text" placeholder="اسم المؤلف">
-        </label>
-        <label>وصف الكتاب
-          <textarea id="bookDescription" rows="4" placeholder="اكتب وصفًا مختصرًا للكتاب"></textarea>
-        </label>
-        <label>إهداء
-          <textarea id="bookDedication" rows="2" placeholder="إلى..."></textarea>
-        </label>
-        <label>حقوق النشر
-          <textarea id="bookRights" rows="2" placeholder="جميع الحقوق محفوظة..."></textarea>
-        </label>
-        <label>صورة الغلاف
-          <input id="coverInput" type="file" accept="image/*">
-        </label>
+      <section class="panel-block">
+        <div class="panel-title-row">
+          <h2>معلومات الكتاب</h2>
+          <span class="pill">الخطوة 1</span>
+        </div>
+
+        <label>عنوان الكتاب</label>
+        <input id="bookTitle" type="text" placeholder="مثال: الصمت الثالث عشر" />
+
+        <label>اسم المؤلف</label>
+        <input id="bookAuthor" type="text" placeholder="مثال: خالد" />
+
+        <label>وصف الكتاب</label>
+        <textarea id="bookDescription" rows="4" placeholder="اكتب وصفًا جذابًا للكتاب..."></textarea>
+
+        <label>صورة الغلاف</label>
+        <input id="coverInput" type="file" accept="image/*" />
+
+        <div class="cover-preview-wrap">
+          <img id="coverPreview" class="cover-preview hidden" alt="معاينة الغلاف" />
+          <div id="coverPlaceholder" class="empty-cover">لم يتم رفع غلاف بعد</div>
+        </div>
       </section>
 
-      <section class="panel">
-        <h2>إضافة الأجزاء</h2>
-        <div class="row">
-          <input id="partTitle" type="text" placeholder="عنوان البارت">
-          <button id="addPartBtn" class="primary">إضافة</button>
+      <section class="panel-block">
+        <div class="panel-title-row">
+          <h2>ستايل مرجعي</h2>
+          <span class="pill">الخطوة 2</span>
         </div>
-        <label>نص البارت
-          <textarea id="partContent" rows="7" placeholder="الصق النص هنا"></textarea>
-        </label>
-        <label>أو ارفع ملفات TXT / MD / DOCX
-          <input id="partsFiles" type="file" accept=".txt,.md,.docx" multiple>
-        </label>
-        <div class="row">
-          <button id="importPartsBtn">استيراد الملفات</button>
-          <button id="clearPartsBtn" class="danger">حذف كل الأجزاء</button>
+        <p class="muted">ارفع صورة أو PDF لكتاب مرجعي حتى نلتقط منه الجو العام والألوان ونقترح شكلًا قريبًا.</p>
+        <input id="styleInput" type="file" accept="image/*,.pdf" />
+        <div class="reference-preview-area">
+          <canvas id="styleCanvas" class="hidden"></canvas>
+          <img id="styleImagePreview" class="style-preview hidden" alt="مرجع ستايل" />
+          <div id="stylePlaceholder" class="empty-cover small">لا يوجد مرجع مرفوع</div>
+        </div>
+
+        <div class="style-controls grid-two">
+          <div>
+            <label>نمط التصميم</label>
+            <select id="stylePreset">
+              <option value="auto">تلقائي من المرجع</option>
+              <option value="classic">رواية كلاسيكية</option>
+              <option value="luxury">فاخر وحديث</option>
+              <option value="dark">داكن سينمائي</option>
+              <option value="minimal">بسيط نظيف</option>
+            </select>
+          </div>
+          <div>
+            <label>الخط الداخلي</label>
+            <select id="fontSelect">
+              <option value="auto">تلقائي</option>
+              <option value="Amiri">Amiri</option>
+              <option value="Tajawal">Tajawal</option>
+              <option value="Cairo">Cairo</option>
+              <option value="Marhey">Marhey</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="color-pickers grid-two">
+          <div>
+            <label>لون الخلفية</label>
+            <input id="bgColor" type="color" value="#f6f1e8" />
+          </div>
+          <div>
+            <label>لون العناوين</label>
+            <input id="accentColor" type="color" value="#6a3b1f" />
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-block">
+        <div class="panel-title-row">
+          <h2>إضافة البارتات</h2>
+          <span class="pill">الخطوة 3</span>
+        </div>
+        <p class="muted">يمكنك رفع ملفات TXT / MD / DOCX دفعة واحدة أو إضافة بارت يدوي.</p>
+        <input id="partsInput" type="file" multiple accept=".txt,.md,.docx" />
+        <div class="action-row">
+          <button id="addManualPart" class="secondary-btn">+ إضافة بارت يدوي</button>
+          <button id="clearParts" class="ghost-btn">مسح الكل</button>
         </div>
         <div id="partsList" class="parts-list"></div>
       </section>
 
-      <section class="panel">
-        <h2>التصميم</h2>
-        <div class="grid-two">
-          <label>الثيم
-            <select id="themeSelect">
-              <option value="luxury-dark">فاخر داكن</option>
-              <option value="classic-paper">ورقي كلاسيكي</option>
-              <option value="horror-ink">رعب أنيق</option>
-              <option value="minimal-light">خفيف حديث</option>
-            </select>
-          </label>
-          <label>حجم الصفحة
-            <select id="pageSize">
-              <option value="a5">A5</option>
-              <option value="b5">B5</option>
-              <option value="6x9">6×9 Novel</option>
-            </select>
-          </label>
-          <label>الخط
-            <select id="fontSelect">
-              <option value="'Amiri', serif">Amiri</option>
-              <option value="'Noto Naskh Arabic', serif">Noto Naskh Arabic</option>
-              <option value="'Aref Ruqaa', serif">Aref Ruqaa</option>
-              <option value="'Markazi Text', serif">Markazi Text</option>
-              <option value="'Lateef', serif">Lateef</option>
-              <option value="'El Messiri', sans-serif">El Messiri</option>
-              <option value="'Cairo', sans-serif">Cairo</option>
-            </select>
-          </label>
-          <label>حجم الخط
-            <input id="fontSize" type="range" min="16" max="30" value="20">
-          </label>
-          <label>تباعد الأسطر
-            <input id="lineHeight" type="range" min="1.4" max="2.4" step="0.1" value="1.95">
-          </label>
-          <label>الهوامش
-            <input id="pagePadding" type="range" min="26" max="72" value="44">
-          </label>
+      <section class="panel-block">
+        <div class="panel-title-row">
+          <h2>التصدير</h2>
+          <span class="pill">الخطوة 4</span>
         </div>
-
-        <div class="color-grid">
-          <label>لون الصفحة <input id="pageBg" type="color" value="#f7f1e3"></label>
-          <label>لون النص <input id="textColor" type="color" value="#1b1511"></label>
-          <label>اللون البارز <input id="accentColor" type="color" value="#b78b47"></label>
-          <label>لون الخلفية <input id="appBg" type="color" value="#0e1118"></label>
+        <label>الصيغة المطلوبة</label>
+        <select id="exportFormat">
+          <option value="pdf">PDF</option>
+          <option value="html">HTML</option>
+          <option value="txt">TXT</option>
+        </select>
+        <div class="action-row stacked">
+          <button id="refreshPreview" class="primary-btn">تحديث المعاينة</button>
+          <button id="exportBtn" class="accent-btn">إنشاء الكتاب وتنزيله</button>
+          <button id="downloadZipBtn" class="secondary-btn">تنزيل كل صفحات المعاينة ZIP</button>
         </div>
-
-        <div class="checks">
-          <label><input id="showFrontMatter" type="checkbox" checked> صفحات تمهيدية</label>
-          <label><input id="showPageNumbers" type="checkbox" checked> أرقام الصفحات</label>
-          <label><input id="highlightDialogues" type="checkbox" checked> إبراز الحوارات</label>
-          <label><input id="highlightQuotes" type="checkbox" checked> إبراز الاقتباسات</label>
-        </div>
-
-        <div class="row">
-          <button id="applyThemeBtn">تطبيق الثيم</button>
-          <button id="generatePreviewBtn" class="primary">تحديث المعاينة</button>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>الحفظ والتصدير</h2>
-        <div class="row wrap">
-          <button id="saveProjectBtn">حفظ المشروع</button>
-          <button id="loadProjectBtn">استرجاع المشروع</button>
-          <button id="exportProjectBtn">تصدير المشروع JSON</button>
-          <input id="projectFileInput" type="file" accept=".json" hidden>
-        </div>
-        <div class="row wrap">
-          <button id="downloadPdfBtn" class="primary">تنزيل PDF</button>
-          <button id="downloadHtmlBtn">تنزيل HTML</button>
-          <button id="downloadTxtBtn">تنزيل TXT</button>
-          <button id="downloadZipImagesBtn">تنزيل الصفحات ZIP</button>
-        </div>
-        <p class="small-note">الـ PDF يُبنى من صور صفحات المعاينة نفسها حتى ينزل بنفس الشكل ويمنع مشكلة الصفحات البيضاء.</p>
+        <p class="tiny-note">التصدير إلى PDF صار يعتمد على صور المعاينة نفسها بعد انتظار الخطوط والصور، لذلك الملف النهائي يطابق الصفحات الظاهرة بدل الصفحات البيضاء.</p>
       </section>
     </aside>
 
-    <main class="main-area">
-      <div class="topbar glass">
+    <main class="workspace">
+      <section class="topbar glass">
         <div>
-          <h2>معاينة الكتاب</h2>
-          <p id="statusText">جاهز</p>
+          <h2>المعاينة الحية</h2>
+          <p>هنا تشاهد كيف سيظهر الكتاب قبل التصدير</p>
         </div>
-        <div class="topbar-actions">
-          <button id="previewSpreadBtn">عرض مزدوج</button>
-          <button id="previewSingleBtn" class="active">عرض منفرد</button>
+        <div class="stats-row">
+          <div class="stat-card">
+            <strong id="partsCount">0</strong>
+            <span>بارت</span>
+          </div>
+          <div class="stat-card">
+            <strong id="wordsCount">0</strong>
+            <span>كلمة تقريبًا</span>
+          </div>
+          <div class="stat-card">
+            <strong id="pagesCount">0</strong>
+            <span>صفحة</span>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div id="previewWrapper" class="preview-wrapper single"></div>
+      <section class="preview-shell">
+        <div id="previewBook" class="book-preview"></div>
+      </section>
     </main>
   </div>
 
-  <div id="measureRoot" class="measure-root" aria-hidden="true"></div>
-
-  <div id="loadingOverlay" class="loading-overlay hidden">
-    <div class="loading-card glass">
-      <div class="spinner"></div>
-      <h3 id="loadingTitle">جارٍ التنفيذ...</h3>
-      <p id="loadingDesc">يرجى الانتظار</p>
-    </div>
-  </div>
-
-  <template id="pageTemplate">
-    <article class="page-card">
-      <div class="page-sheet">
-        <div class="page-inner"></div>
-        <div class="page-number"></div>
+  <template id="partTemplate">
+    <div class="part-card glass-soft" data-id="">
+      <div class="part-card-header">
+        <input class="part-title-input" type="text" placeholder="عنوان البارت" />
+        <div class="part-actions">
+          <button class="move-up" title="رفع">↑</button>
+          <button class="move-down" title="خفض">↓</button>
+          <button class="delete-part danger" title="حذف">×</button>
+        </div>
       </div>
-      <button class="download-page-btn">تنزيل هذه الصفحة</button>
-    </article>
+      <textarea class="part-content-input" rows="8" placeholder="ضع نص البارت هنا..."></textarea>
+    </div>
   </template>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.mjs" type="module"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
-  <script src="script.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>
