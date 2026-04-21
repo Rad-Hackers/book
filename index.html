@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BookForge Studio Ultimate</title>
+  <meta name="description" content="منصة احترافية لصناعة الكتب والروايات وتصديرها ككتاب فاخر مطابق للمعاينة." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;800&family=Noto+Naskh+Arabic:wght@400;600;700&family=Playfair+Display:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <header class="topbar glass">
+    <div>
+      <h1>BookForge Studio <span>Ultimate</span></h1>
+      <p>ابنِ روايتك كأنها كتاب منشور فعلاً — معاينة، صفحات، تصدير، ZIP، PDF مطابق للمعاينة.</p>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="saveProjectBtn">حفظ المشروع</button>
+      <button class="btn ghost" id="loadProjectBtn">استرجاع المشروع</button>
+      <button class="btn ghost" id="clearProjectBtn">مسح المشروع</button>
+      <button class="btn primary" id="validateBtn">فحص الكتاب</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar glass">
+      <section class="panel">
+        <h2>بيانات الكتاب</h2>
+        <label>عنوان الكتاب
+          <input id="bookTitle" type="text" placeholder="مثال: الصمت الثالث عشر" />
+        </label>
+        <label>العنوان الفرعي
+          <input id="bookSubtitle" type="text" placeholder="رواية / كتاب قصصي / مجموعة نصوص" />
+        </label>
+        <label>اسم المؤلف
+          <input id="bookAuthor" type="text" placeholder="اسم الكاتب أو الكاتبة" />
+        </label>
+        <label>نبذة عن الكتاب
+          <textarea id="bookDescription" rows="5" placeholder="اكتب وصفًا جذابًا للكتاب..."></textarea>
+        </label>
+        <div class="grid-2">
+          <label>قياس الصفحات
+            <select id="pageSize">
+              <option value="6x9">6×9 رواية</option>
+              <option value="a5">A5</option>
+              <option value="b5">B5</option>
+            </select>
+          </label>
+          <label>لغة الاتجاه
+            <select id="bookDirection">
+              <option value="rtl">العربية RTL</option>
+              <option value="ltr">English LTR</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid-2">
+          <label>نوع الكتاب المتوقع
+            <select id="bookKind">
+              <option value="auto">تلقائي</option>
+              <option value="novel">رواية</option>
+              <option value="horror">رعب</option>
+              <option value="fantasy">فانتازيا</option>
+              <option value="poetry">خواطر / أدب</option>
+              <option value="essays">مقالات</option>
+            </select>
+          </label>
+          <label>ثيم الكتاب
+            <select id="themeSelect"></select>
+          </label>
+        </div>
+        <div class="grid-2">
+          <label>نوع الخط الأساسي
+            <select id="fontSelect">
+              <option value="Amiri">Amiri</option>
+              <option value="Noto Naskh Arabic">Noto Naskh Arabic</option>
+              <option value="Cairo">Cairo</option>
+              <option value="Playfair Display">Playfair Display</option>
+            </select>
+          </label>
+          <label>لون الصفحات
+            <input id="paperColor" type="color" value="#f3eee3" />
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>الغلاف والمرجع</h2>
+        <label>رفع غلاف الكتاب
+          <input id="coverInput" type="file" accept="image/*" />
+        </label>
+        <label>رفع كتاب أو صورة مرجعية للشكل
+          <input id="referenceInput" type="file" accept="image/*,.pdf" />
+        </label>
+        <div class="mini-actions">
+          <button class="btn small" id="analyzeReferenceBtn">تحليل المرجع</button>
+          <button class="btn small ghost" id="generateAutoCoverBtn">مولد غلاف تلقائي</button>
+        </div>
+        <div class="cover-grid">
+          <div>
+            <span class="tiny-title">الغلاف</span>
+            <div class="cover-preview" id="coverPreview"></div>
+          </div>
+          <div>
+            <span class="tiny-title">المرجع / DNA</span>
+            <div class="style-dna" id="styleDNA"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>الفصول والبارتات</h2>
+        <label>رفع بارتات كثيرة دفعة واحدة
+          <input id="partsInput" type="file" accept=".txt,.md,.docx" multiple />
+        </label>
+        <div class="mini-actions">
+          <button class="btn small" id="addManualPartBtn">إضافة بارت يدوي</button>
+          <button class="btn small ghost" id="smartFormatBtn">تنسيق ذكي</button>
+        </div>
+        <div class="parts-toolbar">
+          <input id="partSearch" type="text" placeholder="ابحث داخل البارتات..." />
+          <button class="btn small ghost" id="sortPartsBtn">ترتيب تلقائي</button>
+        </div>
+        <div id="partsList" class="parts-list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>صفحات تمهيدية</h2>
+        <label><input type="checkbox" id="includeDedication" checked /> صفحة إهداء</label>
+        <label><input type="checkbox" id="includeRights" checked /> صفحة حقوق وتنبيه</label>
+        <label><input type="checkbox" id="includeAboutPage" checked /> صفحة عن الكتاب</label>
+        <label><input type="checkbox" id="includeTOC" checked /> فهرس مبسط</label>
+      </section>
+
+      <section class="panel">
+        <h2>تنسيق متقدم</h2>
+        <label><input type="checkbox" id="dialoguesMode" checked /> تنسيق الحوارات تلقائيًا</label>
+        <label><input type="checkbox" id="highlightQuotesMode" checked /> إبراز الجمل المميزة والاقتباسات</label>
+        <label><input type="checkbox" id="dropcapMode" checked /> حرف افتتاحي كبير لأول فقرة بكل فصل</label>
+        <label><input type="checkbox" id="ornamentsMode" checked /> زخارف وفواصل بين الفصول</label>
+        <label><input type="checkbox" id="spreadMode" /> معاينة صفحتين متقابلتين</label>
+        <label><input type="checkbox" id="flipMode" /> وضع تقليب الصفحات</label>
+        <label><input type="checkbox" id="lockedLayout" /> تثبيت شكل الكتاب قبل التصدير</label>
+        <label><input type="checkbox" id="compareMode" /> مقارنة المعاينة والنسخة النهائية</label>
+      </section>
+
+      <section class="panel">
+        <h2>أوامر التوليد</h2>
+        <div class="stack-actions">
+          <button class="btn primary" id="buildBookBtn">بناء الكتاب</button>
+          <button class="btn ghost" id="renderPreviewImagesBtn">توليد صور المعاينة</button>
+          <button class="btn ghost" id="downloadAllPreviewZipBtn">تنزيل جميع الصفحات ZIP</button>
+          <button class="btn ghost" id="exportHtmlBtn">تنزيل HTML</button>
+          <button class="btn ghost" id="exportTxtBtn">تنزيل TXT</button>
+          <button class="btn primary" id="exportPdfBtn">تنزيل PDF مطابق للمعاينة</button>
+        </div>
+      </section>
+    </aside>
+
+    <section class="workspace glass">
+      <div class="workspace-top">
+        <div>
+          <h2>المعاينة المباشرة</h2>
+          <p id="statusText">جاهز. ارفع الفصول واضغط بناء الكتاب.</p>
+        </div>
+        <div class="status-widgets">
+          <div class="chip" id="genreChip">النوع: —</div>
+          <div class="chip" id="pagesChip">الصفحات: 0</div>
+          <div class="chip" id="healthChip">الفحص: غير مفحوص</div>
+        </div>
+      </div>
+
+      <div class="queue-panel" id="queuePanel">
+        <div class="queue-header">
+          <span>حالة التوليد / التصدير</span>
+          <span id="queuePercent">0%</span>
+        </div>
+        <div class="queue-bar"><div id="queueFill"></div></div>
+        <div class="queue-steps" id="queueSteps">بانتظار المهمة…</div>
+      </div>
+
+      <div class="preview-actions">
+        <button class="btn small" id="prevPageBtn">الصفحة السابقة</button>
+        <button class="btn small" id="nextPageBtn">الصفحة التالية</button>
+        <button class="btn small ghost" id="openPrintModeBtn">وضع التصدير</button>
+        <button class="btn small ghost" id="toggleSpreadBtn">تبديل عرض الصفحتين</button>
+      </div>
+
+      <div id="previewShelf" class="preview-shelf"></div>
+      <div id="exportStage" class="export-stage"></div>
+      <div id="comparePanel" class="compare-panel hidden"></div>
+    </section>
+  </main>
+
+  <template id="partCardTemplate">
+    <article class="part-card">
+      <div class="part-card-head">
+        <input class="part-title-input" type="text" placeholder="عنوان البارت" />
+        <div class="part-card-actions">
+          <button class="icon-btn move-up" title="رفع">↑</button>
+          <button class="icon-btn move-down" title="خفض">↓</button>
+          <button class="icon-btn mark-quote" title="استخراج اقتباسات">✦</button>
+          <button class="icon-btn delete-part danger" title="حذف">×</button>
+        </div>
+      </div>
+      <textarea class="part-content-input" rows="9" placeholder="الصق النص هنا..."></textarea>
+      <div class="part-card-foot">
+        <span class="part-stats"></span>
+      </div>
+    </article>
+  </template>
+
+  <template id="previewPageTemplate">
+    <article class="book-page-wrap">
+      <div class="book-page"></div>
+      <div class="page-controls">
+        <button class="btn small page-download-btn">تنزيل هذه الصفحة</button>
+        <button class="btn small ghost page-copy-btn">نسخ كصورة</button>
+      </div>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
