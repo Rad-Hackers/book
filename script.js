@@ -428,7 +428,7 @@ function expandParagraphsForPagination(content) {
     const sourceLines = lines.length ? lines : [paragraph];
 
     for (const line of sourceLines) {
-      const chunks = splitLongText(line, 220);
+      const chunks = splitLongText(line, 160);
       for (const chunk of chunks) {
         expanded.push({
           text: chunk,
@@ -481,7 +481,7 @@ function paginatePart(title, content, startPageNo) {
       const isPageEmpty = !body.children.length;
 
       if (isPageEmpty && !segment.spacer && segment.text.length > 40) {
-        const fallbackChunks = splitLongText(segment.text, 120);
+        const fallbackChunks = splitLongText(segment.text, 90);
 
         for (const smallChunk of fallbackChunks) {
           const retryNode = appendSegment(body, {
@@ -772,7 +772,7 @@ async function exportPdf(safeTitle) {
 
   images.forEach((image, index) => {
     if (index > 0) pdf.addPage('a5', 'portrait');
-    pdf.addImage(image, 'PNG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
+    pdf.addImage(image, 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
   });
 
   pdf.save(`${safeTitle}.pdf`);
