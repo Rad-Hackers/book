@@ -3,7 +3,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
 const PAGE_WIDTH = 420;
 const PAGE_HEIGHT = 594;
-const EXPORT_SCALE = 2;
+const EXPORT_SCALE = 3;
 const EXPORT_SCALE_MEDIUM = 1.6;
 const EXPORT_SCALE_LARGE = 1.2;
 
@@ -845,7 +845,7 @@ async function exportPdf(safeTitle) {
       if (index > 0) pdf.addPage('a5', 'portrait');
 
       const canvas = await renderPageToCanvas(pages[index], scale);
-      const image = canvas.toDataURL('image/jpeg', 0.92);
+      const image = canvas.toDataURL('image/jpeg', 0.98);
       pdf.addImage(image, 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
 
       canvas.width = 1;
